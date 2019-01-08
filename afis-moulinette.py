@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+min_python_version = (3, 6)
+
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
@@ -13,6 +15,11 @@
 
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+import sys
+if sys.version_info < min_python_version:
+    print(f"error: python version {min_python_version} is required")
+    sys.exit()
 
 import os, io, re, zipfile
 from collections import defaultdict
@@ -181,12 +188,7 @@ def argparse_filepath(filepath):
     return filepath
                 
 if __name__ == "__main__":
-    import sys, argparse
-
-    min_python_version = (3, 6)
-    if sys.version_info < min_python_version:
-        print(f"error: python version {min_python_version} is required")
-        sys.exit()
+    import argparse
 
     parser = argparse.ArgumentParser()
     parser.add_argument('FILE', help='epub file to be converted to spip', type=argparse_filepath)
@@ -202,5 +204,7 @@ if __name__ == "__main__":
             sys.exit()
     else:
         args.output_dir = os.path.dirname(args.FILE)
+        if not args.output_dir:
+            args.output_dir = '.'
 
     epub2spip(args.FILE, args.output_dir)
