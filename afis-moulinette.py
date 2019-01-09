@@ -64,6 +64,8 @@ def css_combine(css, classes):
 
 def css_apply(css, s):
     #TODO: {{{ intertitre, <quote></quote>
+    if s.isspace():
+        return s
     if css['footnote']:
         return f"[[{s}]]"
     if css['text-transform'] == 'uppercase':
@@ -80,14 +82,18 @@ def css_apply(css, s):
     return s
 
 def normalize_spaces(s):
-    s = re.sub(r'\n', '<br/>', s)
-    s = re.sub(r'\s+', ' ', s) # Suppression des espaces multiples
+    s = re.sub(r'}}}{{{', '', s)
+    s = re.sub(r'}}{{', '', s)
+    s = re.sub(r'}{', '', s)
+    s = re.sub(r'\]\]\s*\[\[', '', s)
+    s = re.sub(r'}}}(?:\s|<br\s*/>)+{{{', ' ', s)
+    s = re.sub(r'}}(?:\s|<br\s*/>)+{{', ' ', s)
+    s = re.sub(r'}(?:\s|<br\s*/>)+{', ' ', s)
+    s = re.sub(r'\s+', ' ', s) # Suppression des espaces multiples et normalisation de tous les espaces
     s = re.sub(r'\s*~+\s*', '~', s) # Suppression des espaces avant/après l'espace insécable
-    s = re.sub(r'[~\s]*<br\s*/>[\s~]*', '\n', s)
-    s = re.sub(r'}+\n{+', '', s)
-    s = re.sub(r'[^}]}}}{{{[^}]', '', s)
-    s = re.sub(r'[^}]}}{{[^{]', '', s)
-    s = re.sub(r'[^}]}{[^{]', '', s)
+    s = re.sub(r'[~\s]*(?:<br\s*/>[\s~]*)+', '\n', s)
+    s = re.sub(r'(?:<div\s*/>){2,}', '\n\n', s)
+    s = re.sub(r'<div\s*/>', '\n', s)
     return s
 
 def normalize_ponctuation(s):
@@ -100,6 +106,8 @@ def normalize_ponctuation(s):
     s = re.sub(r'\s*~+\s*', '~', s) # Suppression des espaces avant/après l'espace insécable inséré par les traitements précédents
     s = re.sub(' - ', ' – ', s) # Espace+trait d'union+espace remplacé par espace+demi-cadratin+espace
     s = re.sub(r' -,', ' –,', s) # Espace+trait d'union+virgule remplacé par espace+demi-cadratin+virgule
+    s = re.sub(r'}}}•{{{', '•', s)
+    s = re.sub(r'\.\s+//', '.', s)
     return s
 
 def normalize_urls(s):
@@ -116,44 +124,89 @@ def normalize_urls(s):
     s = re.sub(r'\.do~\?', '.do?', s)
     return s
 
-def parse_text(node):
-    texts = []
-    for child in node:
-        texts.append(parse_text(child))
-    if node.text:
-        texts.append(node.text)
-    return ''.join(texts)
+def replace_footnotes(s):
+    content, footnotes = [], []
+    footnote_re = re.compile(r'^\s*\[\[\s*(\d+)\s*(.*)\]\]')
+    for line in s.split('\n'):
+        m = footnote_re.match(line)
+        if m and m.group(1):
+            footnotes.append((m.group(1), m.group(2)))
+        else:
+            content.append(line)
+    result = []
+    indice_re = re.compile(r"\[\[(\d+)\]\]")
+    for line in content:
+        for idx in indice_re.findall(line):
+            footnote = None
+            i = 0
+            for j, f in enumerate(footnotes):
+                if f[0] == idx:
+                    footnote = f[1]
+                    i = j
+                    break
+            if footnote:
+                line = re.sub(f"\\[\\[{idx}\\]\\]", f"[[{footnote}]]", line)
+                del footnotes[i]
+        result.append(line)
+    return '\n'.join(result)
 
-def parse_node(node, css, classes):
+def normalize_references(s):
+    result = []
+    in_references = False
+    for line in s.split('\n'):
+        if in_references:
+            if line:
+                result.append(f"{line}<br/>")
+            else:
+                result[-1] = result[-1] + ')]'
+                in_references = False
+                result.append(line)
+        else:
+            if line == 'Références':
+                in_references = True
+                result.append(f"[( [| {{{{{line}}}}} |]")
+            else:
+                result.append(line)
+    return '\n'.join(result)
+
+def parse_node(node, css, parent_style):
     texts = []
-    style = css_combine(css, classes)
+    tag = NAME(node.tag)
+    style = parent_style
+    if 'class' in node.attrib:
+        style = parent_style.copy()
+        style.update(css_combine(css, [f"{tag}.{c}" for c in node.attrib['class'].split()]))
+    if node.text and tag not in ['div', 'body']:
+        texts.append(css_apply(style, node.text))
     for child in node:
-        tag = NAME(child.tag)
-        if tag == 'a':
+        child_tag = NAME(child.tag)
+        if child_tag == 'a':
             if 'href' in child.attrib:
-                text = parse_text(child)
+                text = ''.join(child.itertext())
                 link = child.attrib['href']
                 texts.append(f"[{text}->{link}]")
         else:
-            if 'class' in child.attrib:
-                texts.append(parse_node(child, css, classes + [f"{tag}.{c}" for c in child.attrib['class'].split()]))
-            else:
-                texts.append(parse_node(child, css, classes))
-            if tag == 'p':
-                texts.append('\n')
-    if node.text:
-        texts.append(css_apply(style, node.text))
+            texts.append(parse_node(child, css, style))
+            if child_tag == 'p':
+                texts.append('<br/>')
+            elif child_tag == 'div':
+                texts.append('<div/>')
+    if node.tail and tag not in ['div', 'body']:
+        texts.append(css_apply(parent_style, node.tail))
     return ''.join(texts)
 
 def xhtml2spip(content, css):
+    empty_style = defaultdict(str)
     parser = etree.XMLParser()
     parser.entity['nbsp'] = '~'
-
+    
     root = etree.XML(content, parser)
-    content = parse_node(root.find(XHTML('body')), css, [])
+    content = parse_node(root.find(XHTML('body')), css, empty_style)
     content = normalize_spaces(content)
     content = normalize_ponctuation(content)
     content = normalize_urls(content)
+    content = replace_footnotes(content)
+    content = normalize_references(content)
     return content
 
 def epub2spip(epub_file, output_dir):
