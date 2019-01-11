@@ -71,29 +71,38 @@ def css_apply(css, s):
     if css['text-transform'] == 'uppercase':
         s = s.upper()
     if css['font-style'] == 'italic':
-        s = f"{{ {s} }}"
+        s = f"{{{s}}}"
     if css['font-weight'] in ['bold', 'bolder']:
-        s = f"{{{{ {s} }}}}"
+        s = f"{{{{{s}}}}}"
     if css['text-decoration'] == 'line-through':
         s = f"<del>{s}</del>"
     if css['font-size'].endswith('em'):
-        if float(css['font-size'][:-2]) > 1:
-            s = f"{{{{{{ {s} }}}}}}"
+        if float(css['font-size'][:-2]) > 2:
+            s = f"{{{{{{ {{{{{s}}}}} }}}}}}"
+        elif float(css['font-size'][:-2]) > 1:
+            s = f"{{{{{{{s}}}}}}}"
+    if css['text-align'] == 'right':
+        s = f"[/{s}/]"
+    elif css['text-align'] == 'center':
+        s = f"[|{s}|]"
     return s
 
 def normalize_spaces(s):
+    s = re.sub(r'([^}])\s+(}+)', '\\1\\2 ', s)
+    s = re.sub(r'({+)\s+([^{])', ' \\1\\2', s)
     s = re.sub(r'}}}{{{', '', s)
     s = re.sub(r'}}{{', '', s)
     s = re.sub(r'}{', '', s)
     s = re.sub(r'\]\]\s*\[\[', '', s)
-    s = re.sub(r'}}}(?:\s|<br\s*/>)+{{{', ' ', s)
-    s = re.sub(r'}}(?:\s|<br\s*/>)+{{', ' ', s)
-    s = re.sub(r'}(?:\s|<br\s*/>)+{', ' ', s)
+    s = re.sub(r'}}}(?:\s+|<br\s*/>)+{{{', ' ', s)
+    s = re.sub(r'}}\s+{{', ' ', s)
+    s = re.sub(r'}\s+{', ' ', s)
     s = re.sub(r'\s+', ' ', s) # Suppression des espaces multiples et normalisation de tous les espaces
     s = re.sub(r'\s*~+\s*', '~', s) # Suppression des espaces avant/après l'espace insécable
-    s = re.sub(r'[~\s]*(?:<br\s*/>[\s~]*)+', '\n', s)
+    s = re.sub(r'[~\s]*(?:<br\s*/>[\s~]*)+', '\n\n', s)
     s = re.sub(r'(?:<div\s*/>){2,}', '\n\n', s)
     s = re.sub(r'<div\s*/>', '\n', s)
+    s = re.sub(r'\n{2,}', '\n\n', s)
     return s
 
 def normalize_ponctuation(s):
@@ -107,6 +116,7 @@ def normalize_ponctuation(s):
     s = re.sub(' - ', ' – ', s) # Espace+trait d'union+espace remplacé par espace+demi-cadratin+espace
     s = re.sub(r' -,', ' –,', s) # Espace+trait d'union+virgule remplacé par espace+demi-cadratin+virgule
     s = re.sub(r'}}}•{{{', '•', s)
+    s = re.sub(r'•', '-*', s)
     s = re.sub(r'\.\s+//', '.', s)
     return s
 
@@ -123,6 +133,17 @@ def normalize_urls(s):
     s = re.sub(r'\.cfm~\?', '.cfm?', s)
     s = re.sub(r'\.do~\?', '.do?', s)
     return s
+
+def remove_interpages(s):
+    result = []
+    footer_re = re.compile(r'^(?:\[/)?Science et pseudo-sciences n°')
+    header_re1 = re.compile(r'^\[// /\]\[/{{{')
+    header_re2 = re.compile(r'^.*}}} /$')
+    for line in s.split('\n'):
+        if footer_re.match(line) or header_re1.match(line) or header_re2.match(line):
+            continue
+        result.append(line)
+    return '\n'.join(result)
 
 def replace_footnotes(s):
     content, footnotes = [], []
@@ -153,18 +174,23 @@ def replace_footnotes(s):
 def normalize_references(s):
     result = []
     in_references = False
+    eol_cnt = 0
     for line in s.split('\n'):
         if in_references:
-            if line:
+            if line and not line.isspace():
+                eol_cnt = 0
                 result.append(f"{line}<br/>")
             else:
-                result[-1] = result[-1] + ')]'
-                in_references = False
-                result.append(line)
+                eol_cnt += 1
+                if eol_cnt > 1:
+                    result[-1] = result[-1] + ')]'
+                    in_references = False
+                    result.append(line)
         else:
             if line == 'Références':
                 in_references = True
-                result.append(f"[( [| {{{{{line}}}}} |]")
+                eol_cnt = 0
+                result.append(f"[([| {{{{{line}}}}} |]")
             else:
                 result.append(line)
     return '\n'.join(result)
@@ -182,9 +208,12 @@ def parse_node(node, css, parent_style):
         child_tag = NAME(child.tag)
         if child_tag == 'a':
             if 'href' in child.attrib:
-                text = ''.join(child.itertext())
+                a_text = ''.join(child.itertext())
                 link = child.attrib['href']
-                texts.append(f"[{text}->{link}]")
+                texts.append(f"[{a_text}->{link}]")
+                texts.append(css_apply(parent_style, child.tail))
+            else:
+                texts.append(parse_node(child, css, style))
         else:
             texts.append(parse_node(child, css, style))
             if child_tag == 'p':
@@ -207,6 +236,7 @@ def xhtml2spip(content, css):
     content = normalize_urls(content)
     content = replace_footnotes(content)
     content = normalize_references(content)
+    content = remove_interpages(content)
     return content
 
 def epub2spip(epub_file, output_dir):
@@ -239,7 +269,7 @@ def argparse_filepath(filepath):
     if not os.path.exists(filepath):
         raise argparse.ArgumentTypeError(f"{filepath} does not exist")
     return filepath
-                
+
 if __name__ == "__main__":
     import argparse
 
