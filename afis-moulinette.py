@@ -64,10 +64,9 @@ def css_combine(css, classes):
 
 def css_apply(css, s):
     #TODO: {{{ intertitre, <quote></quote>
+    #insert <div style="clear:both"></div> between authors
     if s.isspace():
         return s
-    if css['footnote']:
-        return f"[[{s}]]"
     if css['text-transform'] == 'uppercase':
         s = s.upper()
     if css['font-style'] == 'italic':
@@ -76,9 +75,11 @@ def css_apply(css, s):
         s = f"{{{{{s}}}}}"
     if css['text-decoration'] == 'line-through':
         s = f"<del>{s}</del>"
+    if css['footnote']:
+        return f"[[{s}]]"
     if css['font-size'].endswith('em'):
         if float(css['font-size'][:-2]) > 2:
-            s = f"{{{{{{ {{{{{s}}}}} }}}}}}"
+            s = f"{{{{{{{{{{{s}}}}}}}}}}}"
         elif float(css['font-size'][:-2]) > 1:
             s = f"{{{{{{{s}}}}}}}"
     if css['text-align'] == 'right':
@@ -115,6 +116,11 @@ def normalize_ponctuation(s):
     s = re.sub(r'\s*~+\s*', '~', s) # Suppression des espaces avant/après l'espace insécable inséré par les traitements précédents
     s = re.sub(' - ', ' – ', s) # Espace+trait d'union+espace remplacé par espace+demi-cadratin+espace
     s = re.sub(r' -,', ' –,', s) # Espace+trait d'union+virgule remplacé par espace+demi-cadratin+virgule
+    s = re.sub(r'([\d]+)(e|es|er|re|ers|res|d|de|ds|des)(\s)', '\\1<sup>\\2</sup>\\3', s)
+    s = re.sub(r'([IVX]{2,})e(\s)', '\\1<sup>e</sup>\\2', s)
+    s = re.sub(r'([PD])(r|rs)([\s\.])', '\\1<sup>\\2</sup>\\3', s)
+    s = re.sub(r'M(mes|lles)([\s.])', 'M<sup>\\1</sup>\\2', s)
+    s = re.sub(r'{{([`\'’])}}', '\\1', s)
     s = re.sub(r'}}}•{{{', '•', s)
     s = re.sub(r'•', '-*', s)
     s = re.sub(r'\.\s+//', '.', s)
@@ -211,7 +217,8 @@ def parse_node(node, css, parent_style):
                 a_text = ''.join(child.itertext())
                 link = child.attrib['href']
                 texts.append(f"[{a_text}->{link}]")
-                texts.append(css_apply(parent_style, child.tail))
+                if child.tail:
+                    texts.append(css_apply(parent_style, child.tail))
             else:
                 texts.append(parse_node(child, css, style))
         else:
