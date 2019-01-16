@@ -36,9 +36,9 @@ def NAME(xmlns_name):
     else:
         return xmlns_name
 
-def utf8_zip_content(zip, filepath):
-    with zip.open(filepath) as rf:
-        return rf.read().decode('utf-8')
+def utf8_zip_content(ziphandle, filepath):
+    with ziphandle.open(filepath) as rf:
+        return rf.read().replace(b'\r\n', b'\n').replace(b'\r', b'\n').decode('utf-8')
 
 def read_css(content):
     css = {}
@@ -233,10 +233,11 @@ def parse_node(node, css, parent_style):
 
 def xhtml2spip(content, css):
     empty_style = defaultdict(str)
-    parser = etree.XMLParser()
+    parser = etree.XMLParser(encoding='utf-8')
     parser.entity['nbsp'] = '~'
-    
-    root = etree.XML(content, parser)
+
+    content = re.sub(r'&([a-zA-Z0-9_]+=)', '&amp;\\1', content)
+    root = etree.XML(content, parser=parser)
     content = parse_node(root.find(XHTML('body')), css, empty_style)
     content = normalize_spaces(content)
     content = normalize_ponctuation(content)
@@ -251,8 +252,8 @@ def epub2spip(epub_file, output_dir):
         print(f"error: {epub_file} does not exist")
         return
     epub_name = os.path.basename(epub_file)[:-5]
-    with zipfile.ZipFile(epub_file) as zip:
-        zip_files = zip.namelist()
+    with zipfile.ZipFile(epub_file) as zh:
+        zip_files = zh.namelist()
         oebps_files = [f for f in zip_files if f.startswith('OEBPS')]
         css_templates = [f for f in oebps_files if f.endswith('.css')]
         xhtml_files = [f for f in oebps_files if f.endswith('.xhtml')]
@@ -262,16 +263,16 @@ def epub2spip(epub_file, output_dir):
             return 0
 
         print(f"CSS template: {css_templates[0]}")
-        css = read_css(utf8_zip_content(zip, css_templates[0]))
+        css = read_css(utf8_zip_content(zh, css_templates[0]))
 
         for f in xhtml_files:
             output_name = os.path.basename(f)[:-6]
             output_file = f"{output_dir}/{epub_name}.{output_name}.txt"
             print(f"article: {f} -> {output_file}")
-            xhtml = utf8_zip_content(zip, f)
+            xhtml = utf8_zip_content(zh, f)
             with open(output_file, 'w', encoding='utf-8') as wh:
                 wh.write(xhtml2spip(xhtml, css))
-
+   
 def argparse_filepath(filepath):
     if not os.path.exists(filepath):
         raise argparse.ArgumentTypeError(f"{filepath} does not exist")
