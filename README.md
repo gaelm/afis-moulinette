@@ -9,6 +9,7 @@ S'inspire largement de https://github.com/kovidgoyal/calibre
 3. Télécharger comme référence le pdf du SPS à convertir
 4. Télécharger et installer [les Xpdf Tools](https://www.xpdfreader.com/download.html)
 5. Récupérer toutes les images du SPS: `pdfimages -j SPS.pdf dir`
+6. Télécharger [GIMP](https://www.gimp.org/downloads) ou un autre éditeur d'images
 
 ## Pour chaque article à convertir:
 1. S'attribuer l'article dans la liste de tâches
@@ -28,7 +29,7 @@ S'inspire largement de https://github.com/kovidgoyal/calibre
     - déplacement et reformatage en italique centré `[|{` des descriptions des images `}|]`
     - insertion d'un saut de ligne forcé `<br/>` après une image ou un encadré et avant le titre suivant
 12. Récupérer les images des auteurs et de l'article extraites par `pdfimages`
-13. Redimensionner et éditer les images sous [GIMP](https://www.gimp.org/downloads)
+13. Redimensionner et éditer les images
     - 100x140 pour un auteur
     - 670 de largeur max pour les autres (650 dans un encadré)
     - Insérer les copyrights dans les images en Arial taille 10
