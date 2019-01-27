@@ -16,18 +16,21 @@ S'inspire largement de https://github.com/kovidgoyal/calibre
 2. Déplacer le fichier EPUB vers "prepa-en-cours" puis le télécharger
 3. Exécuter le script python et ouvrir le fichier résultat: `python afis-moulinette.py SPS_325-P_31-34.epub`
 4. Créer un nouvel article avec le titre extrait du fichier résultat: [`https://www.pseudo-sciences.org/ecrire`](https://www.pseudo-sciences.org/ecrire) puis cliquer sur *Écrire un nouvel article*
+   - Ajouter un soustitre si présent ou le surtitre comme soustitre si ce n'est pas un dossier ou une rubrique
 5. Ajouter un chapeau: *nom de l'auteur - SPS n° 325 juillet/septembre 2018*
 6. Copier les présentations des auteurs dans la partie PostScriptum
+   - Vérifier la description des auteurs: ``{{Prénom Nom}} est fonction``
 7. Enregistrer l'ébauche de l'article
 8. Ajouter le mot clé numéro de SPS
 9. Modifier l'article pour y copier le contenu entier du fichier produit par le script
 10. Visualiser cette première version et la comparer avec la version originale de l'article dans le SPS
 11. Corriger le résultat automatique du script en suivant [la syntaxe SPIP](https://www.spip.net/fr_rubrique483.html)
-    - suppression des sauts de lignes et éléments inutiles
-    - ajout `[(` des encadrés `)]`
-    - déplacement des titres des encadrés
-    - déplacement et reformatage en italique centré `[|{` des descriptions des images `}|]`
-    - insertion d'un saut de ligne forcé `<br/>` après une image ou un encadré et avant le titre suivant
+    - Suppression des sauts de lignes et éléments inutiles
+    - Ajout `[(` des encadrés `)]`
+    - Déplacement des titres des encadrés
+    - Déplacement et reformatage en italique centré `[|{` des descriptions des images `}|]`
+    - Insertion d'un saut de ligne forcé `<br/>` après une image ou un encadré et avant le titre suivant
+    - Pour une note de lecture: ajouter au début le titre, soustitre, auteurs et éditeur en `[(` encadré `)]`
 12. Récupérer les images des auteurs et de l'article extraites par `pdfimages`
 13. Redimensionner et éditer les images
     - 100x140 pour un auteur
