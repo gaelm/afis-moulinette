@@ -34,7 +34,7 @@ S'inspire largement de https://github.com/kovidgoyal/calibre
     - Insérer les copyrights dans les images en Arial taille 10
 14. Télécharger [les images dans l'article SPIP](https://www.spip.net/fr_article5631.html)
 15. Insérer les images aux bons endroits de l'article
-16. Corriger les formules de `<math>$` math `$</math>` dans le texte et `<math>$$` centrer les grandes formules `$$</math>`
+16. Corriger les formules de `<math>$` math `$</math>` dans le texte et centrer `<math>$$` les grandes formules `$$</math>`
 16. Regarder toutes les références et remplacer `[les liens->http://www.adresse.com]`
 17. Proposer l'article en validation
 18. Prévisualiser l'article final et corriger les dernières erreurs
