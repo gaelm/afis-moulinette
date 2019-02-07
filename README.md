@@ -31,7 +31,9 @@ S'inspire largement de https://github.com/kovidgoyal/calibre
     - Déplacement et reformatage en italique centré `[|{` des descriptions des images `}|]`
     - Insertion d'un saut de ligne forcé `<br/>` après une image ou un encadré et avant le titre suivant
     - Pour une note de lecture: ajouter au début le titre, soustitre, auteurs et éditeur en `[(` encadré `)]`
-12. Récupérer les images des auteurs et de l'article extraites par `pdfimages`
+12. Récupérer les images des auteurs et de l'article extraites par `pdfimages` et les comparer avec celles contenues dans l'archive epub
+    - le fichier epub est une archive zip qui peut se décompresser
+    - Choisir la meilleure version
 13. Redimensionner et éditer les images
     - 100x140 pour un auteur
     - 670 de largeur max pour les autres (650 dans un encadré)
