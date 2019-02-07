@@ -43,7 +43,7 @@ def utf8_zip_content(ziphandle, filepath):
 def read_css(content):
     css = {}
     for match in CSS_RULE_RE.findall(content):
-        name = match[0]
+        name = match[0].lower()
         if name in css:
             print(f"warning: css rule conflict on name {name}")
         css[name] = defaultdict(str)
@@ -203,11 +203,11 @@ def normalize_references(s):
 
 def parse_node(node, css, parent_style):
     texts = []
-    tag = NAME(node.tag)
+    tag = NAME(node.tag).lower()
     style = parent_style
     if 'class' in node.attrib:
         style = parent_style.copy()
-        style.update(css_combine(css, [f"{tag}.{c}" for c in node.attrib['class'].split()]))
+        style.update(css_combine(css, [f"{tag}.{c}" for c in node.attrib['class'].lower().split('/')]))
     if node.text and tag not in ['div', 'body']:
         texts.append(css_apply(style, node.text))
     for child in node:
@@ -231,14 +231,18 @@ def parse_node(node, css, parent_style):
         texts.append(css_apply(parent_style, node.tail))
     return ''.join(texts)
 
-def xhtml2spip(content, css):
+def read_xhtml(content, css):
     empty_style = defaultdict(str)
     parser = etree.XMLParser(encoding='utf-8')
     parser.entity['nbsp'] = '~'
 
     content = re.sub(r'&([a-zA-Z0-9_]+=)', '&amp;\\1', content)
+    content = re.sub(r'class="([^\s"]+)\s+([^\s"]+)\s+([^\s"]+)"', 'class="\\1/\\2/\\3"', content)
+    content = re.sub(r'class="([^\s"]+)\s+([^\s"]+)"', 'class="\\1/\\2"', content)
     root = etree.XML(content, parser=parser)
-    content = parse_node(root.find(XHTML('body')), css, empty_style)
+    return parse_node(root.find(XHTML('body')), css, empty_style)
+
+def xhtml2spip(content):
     content = normalize_spaces(content)
     content = normalize_ponctuation(content)
     content = normalize_urls(content)
@@ -256,7 +260,7 @@ def epub2spip(epub_file, output_dir):
         zip_files = zh.namelist()
         oebps_files = [f for f in zip_files if f.startswith('OEBPS')]
         css_templates = [f for f in oebps_files if f.endswith('.css')]
-        xhtml_files = [f for f in oebps_files if f.endswith('.xhtml')]
+        xhtml_files = [f for f in oebps_files if f.endswith('.xhtml') and not f.endswith('toc.xhtml')]
 
         if len(css_templates) != 1:
             print("error: no CSS template found")
@@ -265,14 +269,18 @@ def epub2spip(epub_file, output_dir):
         print(f"CSS template: {css_templates[0]}")
         css = read_css(utf8_zip_content(zh, css_templates[0]))
 
+        output_file = f"{output_dir}/{epub_name}.txt"
+        xhtml_contents = []
         for f in xhtml_files:
-            output_name = os.path.basename(f)[:-6]
-            output_file = f"{output_dir}/{epub_name}.{output_name}.txt"
-            print(f"article: {f} -> {output_file}")
+            print(f"article: {f}")
             xhtml = utf8_zip_content(zh, f)
-            with open(output_file, 'w', encoding='utf-8') as wh:
-                wh.write(xhtml2spip(xhtml, css))
-   
+            xhtml_contents.append(read_xhtml(xhtml, css))
+
+        xhtml = '\n'.join(xhtml_contents)
+        print(f"output: {output_file}")
+        with open(output_file, 'w', encoding='utf-8') as wh:
+            wh.write(xhtml2spip(xhtml))
+
 def argparse_filepath(filepath):
     if not os.path.exists(filepath):
         raise argparse.ArgumentTypeError(f"{filepath} does not exist")
