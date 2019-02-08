@@ -239,6 +239,8 @@ def read_xhtml(content, css):
     content = re.sub(r'&([a-zA-Z0-9_]+=)', '&amp;\\1', content)
     content = re.sub(r'class="([^\s"]+)\s+([^\s"]+)\s+([^\s"]+)"', 'class="\\1/\\2/\\3"', content)
     content = re.sub(r'class="([^\s"]+)\s+([^\s"]+)"', 'class="\\1/\\2"', content)
+    content = re.sub(r'(\w+)-</span>', '\\1</span>', content)
+
     root = etree.XML(content, parser=parser)
     return parse_node(root.find(XHTML('body')), css, empty_style)
 
