@@ -177,6 +177,38 @@ def replace_footnotes(s):
         result.append(line)
     return '\n'.join(result)
 
+def ref_replace(ref, ids):
+    ref_list = []
+    for e in ref.group(2).split(','):
+        erange = e.split('-')
+        ref_list.extend(range(int(erange[0]), int(erange[-1]) + 1))
+    tmp = []
+    ref_id_max = max(ids.values()) + 1 if len(ids) > 0 else 0 
+    for r in sorted(set(ref_list)):
+        if r not in ids:
+            ids[r] = ref_id_max
+            ref_id_max += 1
+        tmp.append("<a href=\"#ref%d\" name=\"%d\">%d</a>" % (ids[r], r, r))
+    return "%s[%s]"% (ref.group(1), ', '.join(tmp))
+
+def format_references(s):
+    result = []
+    ref_ids = {}
+    ref_re = re.compile(r'(.)\[(\d+(?:[-,]\s*\d+)*)\]')
+    ref_start_re = re.compile(r'^\[(\d+)\]\s+(.+)')
+    for line in s.split('\n'):
+        m = ref_start_re.match(line)
+        if m:
+            ref_n = int(m.group(1))
+            if ref_n in ref_ids:
+                line = "<a href=\"#%d\" name=\"ref%d\">[%d]</a> %s" % (ref_n, ref_ids[ref_n], ref_n, m.group(2))
+            else:
+                print("warning: no link found for reference %d -> %s" % (ref_n, m.group(2)))
+        else:
+            line = ref_re.sub(lambda x: ref_replace(x, ref_ids), line)
+        result.append(line)
+    return '\n'.join(result)
+
 def normalize_references(s):
     result = []
     in_references = False
@@ -250,6 +282,7 @@ def xhtml2spip(content):
     content = normalize_urls(content)
     content = replace_footnotes(content)
     content = normalize_references(content)
+    content = format_references(content)
     content = remove_interpages(content)
     return content
 
