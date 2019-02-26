@@ -62,26 +62,51 @@ def css_combine(css, classes):
             r['footnote'] = True
     return r
 
+def css_format(s, italic, bold):
+    if italic:
+        s = f"{{{s}}}"
+    if bold:
+        if italic:
+            s = f"{{{s}}}}}"
+        else:
+            s = f"{{{{{s}}}}}"
+    return s
+
 def css_apply(css, s):
     #TODO: {{{ intertitre, <quote></quote>
     #insert <div style="clear:both"></div> between authors
+    italic = css['font-style'] == 'italic'
+    bold = css['font-weight'] in ['bold', 'bolder']
     if s.isspace():
         return s
     if css['text-transform'] == 'uppercase':
         s = s.upper()
-    if css['font-style'] == 'italic':
-        s = f"{{{s}}}"
-    if css['font-weight'] in ['bold', 'bolder']:
-        s = f"{{{{{s}}}}}"
     if css['text-decoration'] == 'line-through':
         s = f"<del>{s}</del>"
     if css['footnote']:
+        s = css_format(s, italic, bold)
         return f"[[{s}]]"
+    font_size = float(css['font-size'][:-2])
     if css['font-size'].endswith('em'):
-        if float(css['font-size'][:-2]) > 2:
+        if font_size > 2:
             s = f"{{{{{{{{{{{s}}}}}}}}}}}"
-        elif float(css['font-size'][:-2]) > 1:
+        elif font_size > 1:
             s = f"{{{{{{{s}}}}}}}"
+        if font_size > 1:
+            bold = False
+            italic = False
+    elif css['font-size'].endswith('px'):
+        if font_size > 500:
+            s = f"{{{{{{{{{{{s}}}}}}}}}}}"
+        elif font_size > 210:
+            if bold:
+                s = f"{{{{{{{s}}}}}}}"
+            else:
+                s = f"{{{{{s}}}}}"
+        if font_size > 210:
+            bold = False
+            italic = False
+    s = css_format(s, italic, bold)
     if css['text-align'] == 'right':
         s = f"[/{s}/]"
     elif css['text-align'] == 'center':
@@ -142,14 +167,18 @@ def normalize_urls(s):
 
 def remove_interpages(s):
     result = []
-    footer_re = re.compile(r'^(?:\[/)?Science et pseudo-sciences n°')
-    header_re1 = re.compile(r'^\[// /\]\[/{{{')
-    header_re2 = re.compile(r'^.*}}} /$')
+    footer_re1 = re.compile(r'^\s*(?:\[/)?\s*Science et pseudo-sciences n°')
+    footer_re2 = re.compile(r'^\s*{+\d+}+')
+    header_re1 = re.compile(r'^\s*\[//\s*/\]\[/{{{')
+    header_re2 = re.compile(r'^.*}}}\s*/\s*$')
+    header_re3 = re.compile(r'^\s*{+/?\s*ARTICLE\s*/?}+\s*$')
     for line in s.split('\n'):
-        if footer_re.match(line) or header_re1.match(line) or header_re2.match(line):
+        if footer_re1.match(line) or footer_re2.match(line) or header_re1.match(line) or header_re2.match(line) or header_re3.match(line):
             continue
         result.append(line)
-    return '\n'.join(result)
+    s = '\n'.join(result)
+    s = re.sub(r'\n{2,}', '\n\n', s)
+    return s
 
 def replace_footnotes(s):
     content, footnotes = [], []
@@ -179,58 +208,58 @@ def replace_footnotes(s):
 
 def ref_replace(ref, ids):
     ref_list = []
-    for e in ref.group(2).split(','):
+    prefix, ref_str = ref.group(1), ref.group(2)
+    for e in ref_str.split(','):
         erange = e.split('-')
         ref_list.extend(range(int(erange[0]), int(erange[-1]) + 1))
     tmp = []
     ref_id_max = max(ids.values()) + 1 if len(ids) > 0 else 0 
-    for r in sorted(set(ref_list)):
+    ref_list = sorted(set(ref_list))
+    if len(ref_list) == 1:
+        r = ref_list[0]
         if r not in ids:
             ids[r] = ref_id_max
             ref_id_max += 1
-        tmp.append("<a href=\"#ref%d\" name=\"%d\">%d</a>" % (ids[r], r, r))
-    return "%s[%s]"% (ref.group(1), ', '.join(tmp))
+        return f"{prefix}<a href=\"#ref{ids[r]}\" name=\"intext{r}\">[{r}]</a>"
+    else:
+        for r in ref_list:
+            if r not in ids:
+                ids[r] = ref_id_max
+                ref_id_max += 1
+            tmp.append(f"<a href=\"#ref{ids[r]}\" name=\"intext{r}\">{r}</a>")
+        arefs = ', '.join(tmp)
+        return f"{prefix}[{arefs}]"
 
 def format_references(s):
     result = []
     ref_ids = {}
     ref_re = re.compile(r'(.)\[(\d+(?:[-,]\s*\d+)*)\]')
     ref_start_re = re.compile(r'^\[(\d+)\]\s+(.+)')
-    for line in s.split('\n'):
-        m = ref_start_re.match(line)
-        if m:
-            ref_n = int(m.group(1))
-            if ref_n in ref_ids:
-                line = "<a href=\"#%d\" name=\"ref%d\">[%d]</a> %s" % (ref_n, ref_ids[ref_n], ref_n, m.group(2))
-            else:
-                print("warning: no link found for reference %d -> %s" % (ref_n, m.group(2)))
-        else:
-            line = ref_re.sub(lambda x: ref_replace(x, ref_ids), line)
-        result.append(line)
-    return '\n'.join(result)
-
-def normalize_references(s):
-    result = []
     in_references = False
     eol_cnt = 0
     for line in s.split('\n'):
         if in_references:
-            if line and not line.isspace():
+            m = ref_start_re.match(line)
+            if m:
                 eol_cnt = 0
-                result.append(f"{line}<br/>")
-            else:
+                ref_n = int(m.group(1))
+                if ref_n in ref_ids:
+                    line = f"<a href=\"#intext{ref_n}\" name=\"ref{ref_ids[ref_n]}\">^[{ref_n}]</a> {m.group(2)}<br/>"
+                else:
+                    print(f"warning: no link found for reference {ref_n} -> {m.group(2)}")
+            elif line.isspace():
                 eol_cnt += 1
                 if eol_cnt > 1:
                     result[-1] = result[-1] + ')]'
                     in_references = False
-                    result.append(line)
         else:
-            if line == 'Références':
+            if line.strip() == 'Références':
                 in_references = True
                 eol_cnt = 0
-                result.append(f"[([| {{{{{line}}}}} |]")
+                line = f"[([| {{{{{line}}}}} |]"
             else:
-                result.append(line)
+                line = ref_re.sub(lambda x: ref_replace(x, ref_ids), line)
+        result.append(line)
     return '\n'.join(result)
 
 def parse_node(node, css, parent_style):
@@ -281,7 +310,6 @@ def xhtml2spip(content):
     content = normalize_ponctuation(content)
     content = normalize_urls(content)
     content = replace_footnotes(content)
-    content = normalize_references(content)
     content = format_references(content)
     content = remove_interpages(content)
     return content
