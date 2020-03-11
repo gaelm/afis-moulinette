@@ -106,6 +106,8 @@ def css_apply(css, s):
         if font_size > 210:
             bold = False
             italic = False
+        elif font_size < 150:
+            s = f"<small>{s}</small>"
     s = css_format(s, italic, bold)
     if css['text-align'] == 'right':
         s = f"[/{s}/]"
@@ -136,7 +138,8 @@ def normalize_ponctuation(s):
     s = re.sub(r'[\s\(]p\.', 'p.~', s) # Placement d'un espace insécable après p.
     s = re.sub(r'([\(\'])\s+', '\\1', s) # Suppression espace après apostrophe, parenthèse ouvrante
     s = re.sub(r'\s+([\)\.,])', '\\1', s) # Suppression espace avant parenthèse fermante, point, virgule
-    s = re.sub('([€%«])', '~\\1', s) # Placement d'un espace insécable avant les signes €, % et les guillemets ouvrants
+    s = re.sub('([€%])', '~\\1', s) # Placement d'un espace insécable avant les signes €, % et les guillemets ouvrants
+    s = re.sub('([«])', '\\1~', s) # Placement d'un espace insécable après les guillemets ouvrants
     s = re.sub(r'([?!;:»])', '~\\1', s) # Insertion d'un espace insécable devant les ponctuations doubles et les guillemets fermants
     s = re.sub(r'\s*~+\s*', '~', s) # Suppression des espaces avant/après l'espace insécable inséré par les traitements précédents
     s = re.sub(' - ', ' – ', s) # Espace+trait d'union+espace remplacé par espace+demi-cadratin+espace
@@ -149,6 +152,9 @@ def normalize_ponctuation(s):
     s = re.sub(r'}}}•{{{', '•', s)
     s = re.sub(r'•', '-*', s)
     s = re.sub(r'\.\s+//', '.', s)
+    s = re.sub(r'([\d]+)<small>([^<]*)</small>', '\\1<sup>\\2</sup>', s)
+    s = re.sub(r'([CHON]+)<small>([^<]*)</small>', '\\1<sub>\\2</sub>', s)
+    s = re.sub(r'</?small>', '', s)
     return s
 
 def normalize_urls(s):
@@ -233,8 +239,8 @@ def ref_replace(ref, ids):
 def format_references(s):
     result = []
     ref_ids = {}
-    ref_re = re.compile(r'(.)\[(\d+(?:[-,]\s*\d+)*)\]')
-    ref_start_re = re.compile(r'^\[(\d+)\]\s+(.+)')
+    ref_re = re.compile(r'(.)\[(\s*\d+(?:[-,]\s*\d+)*\s*)\]')
+    ref_start_re = re.compile(r'^\[(\d+)\]\s*(.+)')
     in_references = False
     eol_cnt = 0
     for line in s.split('\n'):
@@ -244,13 +250,21 @@ def format_references(s):
                 eol_cnt = 0
                 ref_n = int(m.group(1))
                 if ref_n in ref_ids:
-                    line = f"<a href=\"#intext{ref_n}\" name=\"ref{ref_ids[ref_n]}\">^[{ref_n}]</a> {m.group(2)}<br/>"
+                    line = f"<a href=\"#intext{ref_n}\" name=\"ref{ref_ids[ref_n]}\">{ref_n} |</a> {m.group(2)}<br/>"
                 else:
                     print(f"warning: no link found for reference {ref_n} -> {m.group(2)}")
+            elif line.strip() == 'Références':
+                eol_cnt = 0
+                line = f"[([| {{{{{line}}}}} |]"                
             elif line.isspace():
                 eol_cnt += 1
                 if eol_cnt > 1:
                     result[-1] = result[-1] + ')]'
+                    in_references = False
+            else:
+                line = ref_re.sub(lambda x: ref_replace(x, ref_ids), line)
+                if len(line) > 200:
+                    result[-1] = result[-1] + ')]\n'
                     in_references = False
         else:
             if line.strip() == 'Références':
@@ -260,6 +274,8 @@ def format_references(s):
             else:
                 line = ref_re.sub(lambda x: ref_replace(x, ref_ids), line)
         result.append(line)
+    if in_references:
+        result[-1] = result[-1] + ')]'
     return '\n'.join(result)
 
 def parse_node(node, css, parent_style):
